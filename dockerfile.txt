@@ -1,0 +1,60 @@
+ ## conventional way of building docker image
+
+# Use an official Python runtime as a parent image
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y ffmpeg
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir flask openai-whisper
+EXPOSE 5001
+
+# Command to run the application
+CMD ["python", "speechtotext.py"]
+
+
+
+## using mulit-staging method
+
+# Stage 1: Build stage
+FROM python:3.9-slim AS build
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install build dependencies (including ffmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the current directory contents into the container at /app
+COPY . /app
+
+# Install any needed packages specified in requirements.txt (build step)
+RUN pip install --no-cache-dir flask openai-whisper
+
+# Stage 2: Runtime stage (smaller final image)
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install only the runtime dependencies (ffmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only the necessary files from the build stage
+COPY --from=build /app /app
+
+# Expose the required port
+EXPOSE 5001
+
+# Command to run the application
+CMD ["python", "speechtotext.py"]
